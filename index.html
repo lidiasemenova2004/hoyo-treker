@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Трекер материалов · HSR & Genshin</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#09090f; --panel:#0f0f1a; --panel-2:#13131f;
+  --border:rgba(255,255,255,.07); --border-2:rgba(255,255,255,.12);
+  --text:#e8e8f2; --muted:#8a8a9e;
+  --gold:#f0c060; --gold-dim:rgba(240,192,96,.14);
+  --violet:#9b8aff; --violet-dim:rgba(155,138,255,.10);
+  --green:#6be3a8; --red:#ff6b6b;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:system-ui,-apple-system,'Segoe UI',sans-serif;
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font-size:14px;
+}
+.app{display:grid;grid-template-columns:280px 1fr;height:100vh}
+
+/* ───── Sidebar ───── */
+.sidebar{
+  background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.brand{
+  padding:20px 20px 18px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;
+}
+.brand-mark{
+  width:32px;height:32px;border-radius:10px;
+  background:conic-gradient(from 200deg,var(--gold),var(--violet),var(--gold));
+  box-shadow:0 0 22px rgba(155,138,255,.55);
+  flex-shrink:0;
+}
+.brand-title{font-weight:800;font-size:15px;letter-spacing:.3px}
+.brand-sub{font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px}
+
+.nav{flex:1;overflow-y:auto;padding:12px 10px}
+.nav-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 12px;border-radius:9px;cursor:pointer;
+  color:var(--muted);font-size:13px;font-weight:500;
+  transition:background .15s,color .15s;margin-bottom:2px;
+  border:1px solid transparent;
+}
+.nav-item:hover{background:rgba(255,255,255,.03);color:var(--text)}
+.nav-item.active{
+  background:var(--gold-dim);color:var(--gold);
+  border-color:rgba(240,192,96,.25);
+}
+.nav-item .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-item .count{
+  font-size:10px;padding:2px 7px;border-radius:6px;
+  background:rgba(255,255,255,.05);color:var(--muted);
+  flex-shrink:0;margin-left:8px;
+}
+.nav-item.active .count{background:rgba(240,192,96,.2);color:var(--gold)}
+
+.sidebar-footer{
+  padding:14px;border-top:1px solid var(--border);
+  display:flex;flex-direction:column;gap:8px;
+}
+.status{
+  font-size:11px;color:var(--muted);padding:6px 10px;border-radius:6px;
+  background:rgba(255,255,255,.03);text-align:center;
+  transition:all .3s;
+}
+.status.ok{color:var(--green);background:rgba(107,227,168,.1)}
+.status.warn{color:var(--gold);background:var(--gold-dim)}
+.status.err{color:var(--red);background:rgba(255,107,107,.1)}
+.btn{
+  padding:10px 14px;border-radius:9px;border:1px solid transparent;
+  font-size:13px;font-weight:700;cursor:pointer;
+  transition:all .15s;font-family:inherit;
+}
+.btn-primary{
+  background:linear-gradient(120deg,var(--gold),#e39a3c);
+  color:#1a1405;
+}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px -8px rgba(240,192,96,.6)}
+.btn-ghost{
+  background:rgba(255,255,255,.03);color:var(--muted);
+  border-color:var(--border);
+}
+.btn-ghost:hover{background:rgba(255,255,255,.06);color:var(--text)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+
+/* ───── Main ───── */
+.main{display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.main-header{
+  padding:22px 28px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:baseline;justify-content:space-between;
+  gap:16px;flex-wrap:wrap;
+}
+.main-title{font-size:20px;font-weight:800;letter-spacing:-.3px}
+.main-desc{font-size:12.5px;color:var(--muted);margin-top:4px}
+.legend{display:flex;gap:14px;font-size:11px;color:var(--muted)}
+.legend .lg{display:flex;align-items:center;gap:6px}
+.legend .dot{width:9px;height:9px;border-radius:3px}
+
+.content{flex:1;overflow:auto;padding:20px 28px 40px}
+.content::-webkit-scrollbar{width:10px;height:10px}
+.content::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:5px}
+.content::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.15)}
+
+/* ───── Table ───── */
+.sheet-table{
+  border-collapse:separate;border-spacing:0;font-size:12.5px;
+  min-width:100%;background:var(--panel);
+  border:1px solid var(--border);border-radius:10px;
+  overflow:hidden;
+}
+.sheet-table th,.sheet-table td{
+  padding:7px 10px;text-align:left;
+  border-bottom:1px solid var(--border);
+  border-right:1px solid var(--border);
+  white-space:nowrap;
+}
+.sheet-table th:last-child,.sheet-table td:last-child{border-right:none}
+.sheet-table tr:last-child td{border-bottom:none}
+
+.sheet-table thead th{
+  position:sticky;top:0;z-index:3;
+  background:#161625;color:var(--muted);
+  font-weight:600;font-size:11px;text-transform:uppercase;
+  letter-spacing:.4px;
+}
+.sheet-table thead th:first-child{left:0;z-index:4;min-width:44px}
+.sheet-table tbody th{
+  position:sticky;left:0;z-index:2;
+  background:#12121e;color:var(--muted);
+  font-weight:500;font-size:11px;text-align:center;
+  min-width:44px;
+}
+.sheet-table tbody tr:hover td{background:rgba(255,255,255,.02)}
+.sheet-table tbody tr:hover th{background:#181826}
+
+.sheet-table td.formula{
+  background:var(--violet-dim);color:#c8bdfc;
+  font-variant-numeric:tabular-nums;
+  cursor:help;
+}
+.sheet-table td.formula:hover{background:rgba(155,138,255,.16)}
+.sheet-table td.editable{
+  background:transparent;padding:0;
+}
+.sheet-table td.editable input{
+  width:100%;min-width:60px;
+  background:transparent;border:none;outline:none;
+  color:var(--text);font-size:12.5px;
+  padding:7px 10px;font-family:inherit;
+  font-variant-numeric:tabular-nums;
+  border-left:2px solid rgba(240,192,96,.35);
+  transition:background .15s;
+}
+.sheet-table td.editable input:hover{background:rgba(240,192,96,.05)}
+.sheet-table td.editable input:focus{
+  background:rgba(240,192,96,.1);
+  box-shadow:inset 0 0 0 1px rgba(240,192,96,.5);
+}
+.sheet-table td.empty{color:#3a3a4a}
+.sheet-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+
+/* ───── States ───── */
+.center-msg{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;text-align:center;padding:40px;gap:18px;
+}
+.center-msg h2{font-size:22px;font-weight:800}
+.center-msg p{color:var(--muted);max-width:440px;font-size:13.5px;line-height:1.6}
+.spinner{
+  width:36px;height:36px;border-radius:50%;
+  border:3px solid rgba(255,255,255,.08);
+  border-top-color:var(--gold);
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:760px){
+  .app{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .main-header{padding:16px 18px}
+  .content{padding:14px 18px 40px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div>
+        <div class="brand-title">Трекер материалов</div>
+        <div class="brand-sub">HSR · GENSHIN</div>
+      </div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="sidebar-footer">
+      <div class="status" id="status">Инициализация…</div>
+      <button class="btn btn-primary" id="save-btn">💾 Сохранить в файл</button>
+      <button class="btn btn-ghost" id="reset-btn">↺ Сбросить правки</button>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="main-header">
+      <div>
+        <div class="main-title" id="title">Загрузка…</div>
+        <div class="main-desc" id="desc"></div>
+      </div>
+      <div class="legend">
+        <div class="lg"><span class="dot" style="background:rgba(240,192,96,.5)"></span>Редактируемое</div>
+        <div class="lg"><span class="dot" style="background:rgba(155,138,255,.5)"></span>Формула</div>
+      </div>
+    </header>
+    <div class="content" id="content"></div>
+  </main>
+</div>
+<input type="file" id="file-input" accept=".xlsx,.xls" style="display:none">
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   1. ДВИЖОК ФОРМУЛ  —  парсит и вычисляет формулы из xlsx
+   ═══════════════════════════════════════════════════════════════ */
+class FormulaEngine {
+  constructor(sheets) {
+    this.sheets = sheets;   // { name: { "A1": {v, f, t} } }
+    this.computing = new Set();
+  }
+
+  invalidate() {
+    this.computing.clear();
+    for (const n in this.sheets)
+      for (const a in this.sheets[n]) delete this.sheets[n][a].__ok;
+  }
+
+  getSheet(name) { return this.sheets[name] || null; }
+
+  getCell(sheet, addr) {
+    const s = this.getSheet(sheet);
+    if (!s) return 0;
+    const cell = s[addr];
+    if (!cell) return 0;
+    const key = sheet + '!' + addr;
+    if (cell.f && !cell.__ok) {
+      if (this.computing.has(key)) return cell.v ?? 0;
+      this.computing.add(key);
+      try {
+        cell.v = this.evalFormula(cell.f, sheet);
+        cell.__ok = true;
+      } catch (e) {
+        console.warn('Formula error', sheet, addr, cell.f, e);
+        cell.v = cell.v ?? 0;
+        cell.__ok = true;
+      } finally {
+        this.computing.delete(key);
+      }
+    }
+    return cell.v ?? 0;
+  }
+
+  getColumn(sheet, col) {
+    const s = this.getSheet(sheet);
+    if (!s) return [];
+    const out = [];
+    for (const a in s) {
+      const m = a.match(/^([A-Z]+)(\d+)$/);
+      if (m && m[1] === col) out[+m[2]] = this.getCell(sheet, a);
+    }
+    return out;
+  }
+
+  colNum(col){let n=0;for(const c of col)n=n*26+(c.charCodeAt(0)-64);return n}
+  numCol(n){let s='';while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26)}return s}
+
+  evalFormula(f, sheet) {
+    if (typeof f !== 'string') return f;
+    if (f.startsWith('=')) f = f.slice(1);
+    const tokens = this.tokenize(f);
+    const p = new Parser(tokens, this, sheet);
+    return p.parseExpr();
+  }
+
+  tokenize(str) {
+    const t = [];
+    let i = 0;
+    while (i < str.length) {
+      const c = str[i];
+      if (/\s/.test(c)) { i++; continue; }
+      // Sheet-quoted ref 'Sheet name'!A1 or 'Sheet name'!A:A
+      if (c === "'") {
+        const j = str.indexOf("'", i + 1);
+        const sh = str.slice(i + 1, j);
+        i = j + 1;
+        if (str[i] === '!') {
+          i++;
+          let k = i;
+          while (k < str.length && /[A-Z0-9:$]/.test(str[k])) k++;
+          t.push({ type: 'ident', v: sh + '!' + str.slice(i, k) });
+          i = k;
+          continue;
+        }
+        throw new Error('Bad sheet ref');
+      }
+      // String
+      if (c === '"') {
+        const j = str.indexOf('"', i + 1);
+        t.push({ type: 'str', v: str.slice(i + 1, j) });
+        i = j + 1; continue;
+      }
+      // Number
+      if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(str[i + 1]))) {
+        let j = i;
+        while (j < str.length && /[0-9.]/.test(str[j])) j++;
+        t.push({ type: 'num', v: parseFloat(str.slice(i, j)) });
+        i = j; continue;
+      }
+      // Identifier / cell ref / range
+      if (/[A-Za-zА-Яа-яЁё_$!':]/.test(c)) {
+        let j = i;
+        while (j < str.length && /[A-Za-zА-Яа-яЁё0-9_$!':]/.test(str[j])) j++;
+        t.push({ type: 'ident', v: str.slice(i, j) });
+        i = j; continue;
+      }
+      // Two-char operators
+      if (i + 1 < str.length) {
+        const two = str.slice(i, i + 2);
+        if (['<=', '>=', '<>'].includes(two)) {
+          t.push({ type: 'op', v: two }); i += 2; continue;
+        }
+      }
+      if ('+-*/=<>(),&'.includes(c)) {
+        t.push({ type: 'op', v: c }); i++; continue;
+      }
+      throw new Error('Unknown char: ' + c);
+    }
+    return t;
+  }
+}
+
+function toNum(v) {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'string') {
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  }
+  return 0;
+}
+
+function eq(l, r) {
+  // Пустые == 0
+  const lz = (l === null || l === undefined || l === '');
+  const rz = (r === null || r === undefined || r === '');
+  if (lz && rz) return true;
+  if (lz) return toNum(r) === 0;
+  if (rz) return toNum(l) === 0;
+  if (typeof l === 'number' || typeof r === 'number') return toNum(l) === toNum(r);
+  return String(l) === String(r);
+}
+
+class Parser {
+  constructor(tokens, engine, sheet) {
+    this.t = tokens; this.i = 0; this.engine = engine; this.sheet = sheet;
+  }
+  peek() { return this.t[this.i]; }
+  next() { return this.t[this.i++]; }
+  eat(type, v) {
+    const x = this.next();
+    if (!x || x.type !== type || (v !== undefined && x.v !== v))
+      throw new Error(`Expected ${type} ${v ?? ''}, got ${JSON.stringify(x)}`);
+    return x;
+  }
+  match(type, v) {
+    const x = this.peek();
+    if (x && x.type === type && (v === undefined || x.v === v)) { this.i++; return x; }
+    return null;
+  }
+
+  parseExpr() { return this.parseCmp(); }
+
+  parseCmp() {
+    let l = this.parseAdd();
+    while (true) {
+      const p = this.peek();
+      if (p && p.type === 'op' && ['=','<>','<','>','<=','>='].includes(p.v)) {
+        this.i++;
+        const r = this.parseAdd();
+        const op = p.v;
+        if (op === '=') l = eq(l, r);
+        else if (op === '<>') l = !eq(l, r);
+        else {
+          const a = toNum(l), b = toNum(r);
+          l = op === '<' ? a < b : op === '>' ? a > b : op === '<=' ? a <= b : a >= b;
+        }
+      } else break;
+    }
+    return l;
+  }
+
+  parseAdd() {
+    let l = this.parseMul();
+    while (true) {
+      const p = this.peek();
+      if (p && p.type === 'op' && (p.v === '+' || p.v === '-')) {
+        this.i++;
+        const r = this.parseMul();
+        l = p.v === '+' ? toNum(l) + toNum(r) : toNum(l) - toNum(r);
+      } else break;
+    }
+    return l;
+  }
+
+  parseMul() {
+    let l = this.parseUnary();
+    while (true) {
+      const p = this.peek();
+      if (p && p.type === 'op' && (p.v === '*' || p.v === '/')) {
+        this.i++;
+        const r = this.parseUnary();
+        l = p.v === '*' ? toNum(l) * toNum(r) : toNum(l) / toNum(r);
+      } else break;
+    }
+    return l;
+  }
+
+  parseUnary() {
+    if (this.match('op', '-')) return -toNum(this.parseUnary());
+    if (this.match('op', '+')) return +toNum(this.parseUnary());
+    return this.parsePrimary();
+  }
+
+  parsePrimary() {
+    const tk = this.next();
+    if (!tk) throw new Error('Unexpected end');
+
+    if (tk.type === 'num') return tk.v;
+    if (tk.type === 'str') return tk.v;
+
+    if (tk.type === 'op' && tk.v === '(') {
+      const v = this.parseExpr();
+      this.eat('op', ')');
+      return v;
+    }
+
+    if (tk.type === 'ident') {
+      // Function call?
+      if (this.peek() && this.peek().type === 'op' && this.peek().v === '(') {
+        this.i++;
+        const args = [];
+        if (this.peek() && this.peek().type === 'op' && this.peek().v === ')') {
+          this.i++;
+        } else {
+          while (true) {
+            args.push(this.parseExpr());
+            if (this.match('op', ',')) continue;
+            this.eat('op', ')');
+            break;
+          }
+        }
+        return this.callFn(tk.v.toUpperCase(), args);
+      }
+      // Cell ref / range
+      const raw = tk.v;
+      let sheet = this.sheet, ref = raw;
+      if (raw.includes('!')) {
+        const idx = raw.lastIndexOf('!');
+        sheet = raw.slice(0, idx);
+        ref = raw.slice(idx + 1);
+      }
+      ref = ref.replace(/\$/g, '');
+      if (ref.includes(':')) {
+        // Range
+        const [a, b] = ref.split(':');
+        const ma = a.match(/^([A-Z]+)(\d*)$/);
+        const mb = b.match(/^([A-Z]+)(\d*)$/);
+        return {
+          __range: true, sheet,
+          c1: ma[1], r1: ma[2] ? +ma[2] : null,
+          c2: mb[1], r2: mb[2] ? +mb[2] : null,
+        };
+      }
+      return this.engine.getCell(sheet, ref);
+    }
+    throw new Error('Unexpected token: ' + JSON.stringify(tk));
+  }
+
+  materializeRange(r) {
+    if (!r.r1) return this.engine.getColumn(r.sheet, r.c1);
+    const out = [];
+    const c1 = this.engine.colNum(r.c1), c2 = this.engine.colNum(r.c2);
+    for (let row = r.r1; row <= r.r2; row++)
+      for (let c = c1; c <= c2; c++)
+        out.push(this.engine.getCell(r.sheet, this.engine.numCol(c) + row));
+    return out;
+  }
+
+  callFn(name, args) {
+    switch (name) {
+      case 'SUMIF': {
+        const range = args[0], crit = args[1], sum = args[2];
+        if (!range?.__range || !sum?.__range) return 0;
+        const rv = this.materializeRange(range);
+        const sv = this.materializeRange(sum);
+        let total = 0;
+        const n = Math.max(rv.length, sv.length);
+        for (let i = 0; i < n; i++) {
+          if (matchCrit(rv[i], crit)) total += toNum(sv[i]);
+        }
+        return total;
+      }
+      case 'SUM': {
+        let total = 0;
+        for (const a of args) {
+          if (a?.__range) for (const v of this.materializeRange(a)) total += toNum(v);
+          else total += toNum(a);
+        }
+        return total;
+      }
+      case 'IF': return args[0] ? args[1] : (args[2] ?? false);
+      case 'AND': return args.every(a => !!a);
+      case 'OR': return args.some(a => !!a);
+      case 'NOT': return !args[0];
+      case 'ROUNDUP': {
+        const d = Math.pow(10, toNum(args[1] || 0));
+        return Math.ceil(toNum(args[0]) * d) / d;
+      }
+      case 'ROUNDDOWN': {
+        const d = Math.pow(10, toNum(args[1] || 0));
+        return Math.floor(toNum(args[0]) * d) / d;
+      }
+      case 'MOD': return toNum(args[0]) % toNum(args[1]);
+      case 'INT': return Math.floor(toNum(args[0]));
+      case 'ABS': return Math.abs(toNum(args[0]));
+      default: throw new Error('Unknown fn: ' + name);
+    }
+  }
+}
+
+function matchCrit(val, crit) {
+  if (crit === null || crit === undefined || crit === '')
+    return val === null || val === undefined || val === '';
+  if (typeof crit === 'string') {
+    const m = crit.match(/^(<=|>=|<>|<|>|=)(.+)$/);
+    if (m) {
+      const op = m[1], num = parseFloat(m[2]);
+      if (!isNaN(num)) {
+        const v = toNum(val);
+        if (op === '=') return v === num;
+        if (op === '<>') return v !== num;
+        if (op === '<') return v < num;
+        if (op === '>') return v > num;
+        if (op === '<=') return v <= num;
+        if (op === '>=') return v >= num;
+      }
+    }
+    return String(val) === crit;
+  }
+  return eq(val, crit);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   2. КАКИЕ КОЛОНКИ РЕДАКТИРУЕМЫЕ
+   ═══════════════════════════════════════════════════════════════ */
+const FISH_COLS = ['F','G','H','I','J','K','L','M','N','O','P','Q','R','S'];
+const EDITABLE = {
+  'Хср персы':        { C: 1, E: 1 },
+  'Хср боссы':        { B: 1 },
+  'геншин персы':     { E: 1, F: 1, G: 1, H: 1 },
+  'материалы прокачки': { B: 1, F: 1, K: 1 },
+  'диковинки':        { C: 1 },
+  'Кристалы':         { B: 1, F: 1, K: 1, P: 1 },
+  'еженед боссы':     { B: 1 },
+  'боссы':            { B: 1 },
+  'Книги талантов':   { B: 1, F: 1, K: 1 },
+  'Рыбалка':          Object.fromEntries([['D',1], ...FISH_COLS.map(c => [c,1])]),
+};
+
+const SHEET_META = {
+  'Хср персы':          { icon: '👤', desc: 'Персонажи HSR · возвышение, следы, таланты' },
+  'Хср боссы':          { icon: '💀', desc: 'Боссы HSR · материалы и следы' },
+  'боссы следов':       { icon: '🌌', desc: 'Сводка по боссам следов' },
+  'ch материалы':       { icon: '📦', desc: 'Резервный лист' },
+  'геншин персы':       { icon: '🎮', desc: 'Персонажи Genshin · всё в одном листе' },
+  'материалы прокачки': { icon: '📈', desc: 'Материалы возвышения · крафт' },
+  'диковинки':          { icon: '🌸', desc: 'Региональные диковинки' },
+  'Кристалы':           { icon: '💎', desc: 'Кристаллы по стихиям' },
+  'еженед боссы':       { icon: '🐉', desc: 'Материалы еженедельных боссов' },
+  'боссы':              { icon: '🗡️', desc: 'Материалы боссов мира' },
+  'Книги талантов':     { icon: '📖', desc: 'Книги талантов · крафт' },
+  'Рыбалка':            { icon: '🎣', desc: 'Учёт улова' },
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   3. СОСТОЯНИЕ
+   ═══════════════════════════════════════════════════════════════ */
+let wb = null;
+let sheets = {};
+let engine = null;
+let currentSheet = null;
+
+const $nav     = document.getElementById('nav');
+const $content = document.getElementById('content');
+const $title   = document.getElementById('title');
+const $desc    = document.getElementById('desc');
+const $status  = document.getElementById('status');
+const $saveBtn = document.getElementById('save-btn');
+const $resetBtn= document.getElementById('reset-btn');
+const $fileInp = document.getElementById('file-input');
+
+/* ═══════════════════════════════════════════════════════════════
+   4. ЗАГРУЗКА / СОХРАНЕНИЕ
+   ═══════════════════════════════════════════════════════════════ */
+async function loadWorkbook() {
+  // 1) пробуем скачать из папки проекта
+  try {
+    const r = await fetch('./' + encodeURIComponent('data.xlsx'), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const buf = await r.arrayBuffer();
+    return XLSX.read(buf, { type: 'array', cellFormula: true });
+  } catch (e) {
+    console.warn('Auto-fetch failed:', e.message);
+    // 2) fallback — просим файл у пользователя
+    setStatus('Выберите файл data.xlsx', 'warn');
+    const file = await pickFile();
+    const buf = await file.arrayBuffer();
+    return XLSX.read(buf, { type: 'array', cellFormula: true });
+  }
+}
+
+function pickFile() {
+  return new Promise((resolve, reject) => {
+    $fileInp.onchange = e => {
+      const f = e.target.files?.[0];
+      if (f) resolve(f); else reject(new Error('No file'));
+    };
+    $fileInp.click();
+  });
+}
+
+function parseWorkbook(wbIn) {
+  const out = {};
+  for (const name of wbIn.SheetNames) {
+    const ws = wbIn.Sheets[name];
+    if (!ws) continue;
+    const data = {};
+    for (const addr in ws) {
+      if (addr[0] === '!') continue;
+      const c = ws[addr];
+      data[addr] = {
+        v: c.v,
+        f: c.f ? (c.f.startsWith('=') ? c.f : '=' + c.f) : undefined,
+        t: c.t,
+      };
+    }
+    out[name] = data;
+  }
+  return out;
+}
+
+function applyUserEdits() {
+  const raw = localStorage.getItem('tracker-edits-v1');
+  if (!raw) return;
+  let edits;
+  try { edits = JSON.parse(raw); } catch { return; }
+  for (const name in edits) {
+    if (!sheets[name]) continue;
+    for (const addr in edits[name]) {
+      if (!sheets[name][addr]) sheets[name][addr] = {};
+      sheets[name][addr].v = edits[name][addr];
+      delete sheets[name][addr].f;
+      delete sheets[name][addr].__ok;
+    }
+  }
+}
+
+function collectUserEdits() {
+  const out = {};
+  for (const name in sheets) {
+    const cols = EDITABLE[name];
+    if (!cols) continue;
+    for (const addr in sheets[name]) {
+      const m = addr.match(/^([A-Z]+)(\d+)$/);
+      if (!m) continue;
+      if (!cols[m[1]]) continue;
+      if (+m[2] < 2) continue;
+      const c = sheets[name][addr];
+      if (c && !c.f && c.v !== undefined && c.v !== null && c.v !== '') {
+        out[name] = out[name] || {};
+        out[name][addr] = c.v;
+      }
+    }
+  }
+  return out;
+}
+
+function saveUserEdits() {
+  localStorage.setItem('tracker-edits-v1', JSON.stringify(collectUserEdits()));
+  setStatus('✓ Изменения сохранены (сессия)', 'ok');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   5. UI
+   ═══════════════════════════════════════════════════════════════ */
+function setStatus(text, type = '') {
+  $status.textContent = text;
+  $status.className = 'status ' + type;
+}
+
+function renderNav() {
+  $nav.innerHTML = '';
+  for (const name of Object.keys(sheets)) {
+    const meta = SHEET_META[name] || { icon: '📄' };
+    const count = Object.keys(sheets[name]).filter(a => {
+      const m = a.match(/^([A-Z]+)(\d+)$/);
+      return m && +m[2] >= 2 && sheets[name][a].v !== undefined && sheets[name][a].v !== '';
+    }).length;
+
+    const el = document.createElement('div');
+    el.className = 'nav-item' + (name === currentSheet ? ' active' : '');
+    el.innerHTML = `
+      <span class="name">${meta.icon} ${name}</span>
+      ${count ? `<span class="count">${count}</span>` : ''}
+    `;
+    el.onclick = () => selectSheet(name);
+    $nav.appendChild(el);
+  }
+}
+
+function selectSheet(name) {
+  currentSheet = name;
+  const meta = SHEET_META[name] || { icon: '📄', desc: '' };
+  $title.textContent = `${meta.icon} ${name}`;
+  $desc.textContent = meta.desc || '';
+  renderNav();
+  renderSheet(name);
+}
+
+function renderSheet(name) {
+  if (!sheets[name]) {
+    $content.innerHTML = '<div class="center-msg"><h2>Пусто</h2><p>Лист пуст.</p></div>';
+    return;
+  }
+  const data = sheets[name];
+
+  // Определяем границы таблицы
+  let maxRow = 0, minRow = Infinity;
+  const cols = new Set();
+  for (const a in data) {
+    const m = a.match(/^([A-Z]+)(\d+)$/);
+    if (!m) continue;
+    cols.add(m[1]);
+    const r = +m[2];
+    if (r > maxRow) maxRow = r;
+    if (r < minRow) minRow = r;
+  }
+  if (!cols.size) {
+    $content.innerHTML = '<div class="center-msg"><h2>Пусто</h2><p>Лист пуст.</p></div>';
+    return;
+  }
+  const sortedCols = [...cols].sort((a, b) => engine.colNum(a) - engine.colNum(b));
+  minRow = Math.max(1, minRow);
+
+  const tbl = document.createElement('table');
+  tbl.className = 'sheet-table';
+
+  // Header
+  const thead = document.createElement('thead');
+  const htr = document.createElement('tr');
+  htr.innerHTML = '<th></th>';
+  for (const c of sortedCols) {
+    const th = document.createElement('th');
+    const headerVal = data[c + 1]?.v ?? '';
+    th.textContent = headerVal === '' ? c : headerVal;
+    th.title = 'Колонка ' + c;
+    htr.appendChild(th);
+  }
+  thead.appendChild(htr);
+  tbl.appendChild(thead);
+
+  // Body
+  const tbody = document.createElement('tbody');
+  for (let r = 2; r <= maxRow; r++) {
+    const tr = document.createElement('tr');
+    const rth = document.createElement('th');
+    rth.textContent = r;
+    tr.appendChild(rth);
+
+    let rowHasData = false;
+    const rowCells = [];
+    for (const c of sortedCols) {
+      const addr = c + r;
+      const cell = data[addr];
+      const editable = isEditable(name, c, r, cell);
+      let val = cell ? engine.getCell(name, addr) : '';
+      if (val !== '' && val !== null && val !== undefined) rowHasData = true;
+      rowCells.push({ addr, cell, editable, val, c });
+    }
+    if (!rowHasData) continue; // пропускаем полностью пустые строки
+
+    for (const { addr, cell, editable, val, c } of rowCells) {
+      const td = document.createElement('td');
+      if (editable) {
+        td.className = 'editable';
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.value = (val === undefined || val === null) ? '' : val;
+        inp.dataset.sheet = name;
+        inp.dataset.addr = addr;
+        inp.addEventListener('change', onCellChange);
+        td.appendChild(inp);
+      } else if (cell?.f) {
+        td.className = 'formula num';
+        td.textContent = fmt(val);
+        td.title = cell.f;
+      } else {
+        td.textContent = fmt(val);
+        if (typeof val === 'number') td.className = 'num';
+        else if (val === '' || val === null || val === undefined) td.className = 'empty';
+      }
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  tbl.appendChild(tbody);
+
+  $content.innerHTML = '';
+  $content.appendChild(tbl);
+}
+
+function isEditable(sheet, col, row, cell) {
+  const cols = EDITABLE[sheet];
+  if (!cols || !cols[col]) return false;
+  if (row < 2) return false;
+  if (cell?.f) return false;
+  return true;
+}
+
+function fmt(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (typeof v === 'number') {
+    if (Number.isInteger(v)) return v.toString();
+    return v.toFixed(2).replace(/\.?0+$/, '');
+  }
+  return String(v);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   6. РЕДАКТИРОВАНИЕ
+   ═══════════════════════════════════════════════════════════════ */
+let saveTimer;
+function onCellChange(e) {
+  const inp = e.target;
+  const sheet = inp.dataset.sheet;
+  const addr = inp.dataset.addr;
+  const raw = inp.value.trim();
+  const val = raw === '' ? undefined : Number(raw);
+
+  if (!sheets[sheet][addr]) sheets[sheet][addr] = {};
+  sheets[sheet][addr].v = val;
+  delete sheets[sheet][addr].f;
+  delete sheets[sheet][addr].__ok;
+
+  engine.invalidate();
+
+  setStatus('● Есть несохранённые изменения', 'warn');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveUserEdits();
+    renderSheet(sheet);
+  }, 400);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   7. ЭКСПОРТ В XLSX
+   ═══════════════════════════════════════════════════════════════ */
+async function saveToFile() {
+  if (!wb) return;
+  // Обновим wb актуальными значениями
+  for (const name in sheets) {
+    const ws = wb.Sheets[name];
+    if (!ws) continue;
+    for (const addr in sheets[name]) {
+      const cell = sheets[name][addr];
+      if (!ws[addr]) ws[addr] = {};
+      if (cell.f) {
+        ws[addr].f = cell.f.startsWith('=') ? cell.f.slice(1) : cell.f;
+        ws[addr].v = cell.v;
+      } else {
+        if (cell.v !== undefined && cell.v !== null) ws[addr].v = cell.v;
+        else delete ws[addr].v;
+        delete ws[addr].f;
+      }
+    }
+  }
+
+  // Пробуем File System Access API
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: 'data.xlsx',
+        types: [{
+          description: 'Excel',
+          accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] },
+        }],
+      });
+      const writable = await handle.createWritable();
+      const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      await writable.write(out);
+      await writable.close();
+      setStatus('✓ Сохранено в файл', 'ok');
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      console.warn('FSA failed:', e);
+    }
+  }
+  // Fallback — скачивание
+  XLSX.writeFile(wb, 'хср-updated.xlsx');
+  setStatus('✓ Скачано. Замените файл в папке', 'ok');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   8. INIT
+   ═══════════════════════════════════════════════════════════════ */
+async function init() {
+  $saveBtn.disabled = true;
+  $resetBtn.disabled = true;
+  $content.innerHTML = '<div class="center-msg"><div class="spinner"></div><p>Загружаем таблицу…</p></div>';
+
+  try {
+    wb = await loadWorkbook();
+    sheets = parseWorkbook(wb);
+    applyUserEdits();
+    engine = new FormulaEngine(sheets);
+
+    // Первый проход — прогреть вычисления
+    for (const name in sheets)
+      for (const addr in sheets[name])
+        engine.getCell(name, addr);
+
+    $saveBtn.disabled = false;
+    $resetBtn.disabled = false;
+    setStatus('✓ Готово', 'ok');
+
+    const first = Object.keys(sheets).find(n => Object.keys(sheets[n]).length > 0);
+    selectSheet(first);
+  } catch (e) {
+    console.error(e);
+    setStatus('✗ ' + e.message, 'err');
+    $content.innerHTML = `
+      <div class="center-msg">
+        <h2>Не удалось загрузить</h2>
+        <p>${e.message}<br><br>
+        Запустите локальный сервер в папке проекта:<br>
+        <code style="color:#f0c060">python -m http.server 8000</code><br>
+        и откройте <code style="color:#f0c060">http://localhost:8000</code></p>
+      </div>`;
+  }
+}
+
+$saveBtn.onclick = saveToFile;
+$resetBtn.onclick = () => {
+  if (!confirm('Сбросить все ваши правки? Формулы и данные из xlsx останутся.')) return;
+  localStorage.removeItem('tracker-edits-v1');
+  location.reload();
+};
+
+init();
+</script>
+</body>
+</html>
