@@ -1,0 +1,93 @@
+{
+  "Хср персы": {
+    "file": "hsr_characters.csv",
+    "editable": [
+      "B",
+      "C",
+      "D",
+      "E"
+    ]
+  },
+  "Хср боссы": {
+    "file": "hsr_bosses.csv",
+    "editable": [
+      "B"
+    ]
+  },
+  "боссы следов": {
+    "file": "trace_bosses.csv",
+    "editable": []
+  },
+  "геншин персы": {
+    "file": "genshin_characters.csv",
+    "editable": [
+      "E",
+      "F",
+      "G",
+      "H"
+    ]
+  },
+  "материалы прокачки": {
+    "file": "ascension_materials.csv",
+    "editable": [
+      "B",
+      "F",
+      "K"
+    ]
+  },
+  "диковинки": {
+    "file": "local_specialties.csv",
+    "editable": [
+      "C"
+    ]
+  },
+  "Кристалы": {
+    "file": "crystals.csv",
+    "editable": [
+      "B",
+      "F",
+      "K",
+      "P"
+    ]
+  },
+  "еженед боссы": {
+    "file": "weekly_bosses.csv",
+    "editable": [
+      "B"
+    ]
+  },
+  "боссы": {
+    "file": "world_bosses.csv",
+    "editable": [
+      "B"
+    ]
+  },
+  "Книги талантов": {
+    "file": "talent_books.csv",
+    "editable": [
+      "B",
+      "F",
+      "K"
+    ]
+  },
+  "Рыбалка": {
+    "file": "fishing.csv",
+    "editable": [
+      "D",
+      "F",
+      "G",
+      "H",
+      "I",
+      "J",
+      "K",
+      "L",
+      "M",
+      "N",
+      "O",
+      "P",
+      "Q",
+      "R",
+      "S"
+    ]
+  }
+}
